@@ -8,6 +8,7 @@ import javafx.scene.paint.Color;
 import javafx.scene.text.Text;
 import javafx.stage.Stage;
 
+
 public class App extends Application {
 
 
@@ -17,17 +18,11 @@ public class App extends Application {
 
     @Override
     public void start(Stage stage) throws Exception {
-        Parent root = FXMLLoader.load(App.class.getResource("fxml/test.fxml"));
+        Parent root = FXMLLoader.load(App.class.getResource("fxml/MainLayout.fxml"));
 
         Scene scene = new Scene(root, Color.WHITE);
 
-        stage.setTitle("Hello World");
-
-        Text text = new Text();
-        text.setText("Hello World");
-
-        text.setX(50);
-        text.setY(50);
+        stage.setTitle("Discompressor");
 
         stage.setScene(scene);
         stage.show();
