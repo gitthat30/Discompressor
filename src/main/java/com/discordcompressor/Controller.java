@@ -1,13 +1,16 @@
 package com.discordcompressor;
 
+import javafx.scene.media.Media;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
 import javafx.scene.control.Button;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
+import javafx.scene.media.MediaPlayer;
 import javafx.stage.DirectoryChooser;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
+import javafx.util.Duration;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -28,6 +31,8 @@ public class Controller {
     private Button compressButton;
     @FXML
     private Button openButton;
+
+    private File currentFile;
 
     public void initialize() {
         videoTextField.setEditable(false);
@@ -65,6 +70,7 @@ public class Controller {
         File selectedFile = browse.showOpenDialog(new Stage());
 
         if (selectedFile != null) {
+            currentFile = selectedFile;
             videoTextField.setText(selectedFile.getAbsolutePath());
         }
         else {
@@ -95,5 +101,54 @@ public class Controller {
         } catch (IOException ex) {
             ex.printStackTrace();
         }
+    }
+
+    public int calculateOutputBitrate() {
+        try {
+            ProcessBuilder pb = new ProcessBuilder("ffmpeg", "-i", videoTextField.getText());
+
+            pb.redirectErrorStream(true);
+
+            Process process = pb.start();
+
+            BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream())); //Read output of ffmpeg
+
+            String l = reader.readLine();
+            String durString = "None";
+            while((l != null)) {
+                if(l.contains("Duration")) {
+                    durString = l.split(",")[0].split(" ")[3];
+                }
+
+                l = reader.readLine();
+            }
+
+            System.out.println(durString);
+
+            String [] parts = durString.split(":");
+            int hours = Integer.parseInt(parts[0]);
+            int minutes = Integer.parseInt(parts[1]);
+            int seconds = Integer.parseInt(parts[2].split("\\.")[0]) + (minutes * 60) + (hours * 3600);
+
+            int bitrate = (int) ((7.5 * 8192) / seconds);
+
+            System.out.println(bitrate);
+
+            return bitrate;
+
+        } catch (Exception ex) {
+            throw new RuntimeException(ex);
+        }
+    }
+
+    public void compress(ActionEvent e) {
+         int outputBitrate = calculateOutputBitrate();
+
+        System.out.println(outputBitrate);
+
+        //Todo
+        /* Compression logic
+        *  Browse from the folder you left off
+        *  Input validation for compress*/
     }
 }

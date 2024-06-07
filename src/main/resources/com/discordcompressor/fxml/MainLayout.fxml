@@ -71,7 +71,7 @@
             </HBox>
             <HBox>
                <children>
-                  <Button fx:id="compressButton" mnemonicParsing="false" prefHeight="25.0" prefWidth="69.0" text="Compress">
+                  <Button fx:id="compressButton" mnemonicParsing="false" onAction="#compress" prefHeight="25.0" prefWidth="69.0" text="Compress">
                      <HBox.margin>
                         <Insets left="5.0" top="5.0" />
                      </HBox.margin>
