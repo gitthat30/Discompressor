@@ -1,5 +1,7 @@
 package com.discordcompressor;
 
+import javafx.application.Platform;
+import javafx.scene.control.ProgressBar;
 import javafx.scene.media.Media;
 import javafx.event.ActionEvent;
 import javafx.fxml.FXML;
@@ -7,17 +9,24 @@ import javafx.scene.control.Button;
 import javafx.scene.control.TextArea;
 import javafx.scene.control.TextField;
 import javafx.scene.media.MediaPlayer;
+import javafx.scene.text.Text;
 import javafx.stage.DirectoryChooser;
 import javafx.stage.FileChooser;
 import javafx.stage.Stage;
 import javafx.util.Duration;
 
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStreamReader;
+import java.io.*;
+import java.util.Arrays;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class Controller {
+
+    private String IDEString = "ffmpeg";
+    private String compileString = "./bin/ffmpeg";
+    private double videoBitrate = 0;
+    private double audioBitrate = 0;
+    private double totalSeconds = 0;
 
     @FXML
     private TextField videoTextField;
@@ -31,10 +40,32 @@ public class Controller {
     private Button compressButton;
     @FXML
     private Button openButton;
+    @FXML
+    private Button refreshButton;
+    @FXML
+    private Text ffmpegText;
+    @FXML
+    private ProgressBar progressBar;
 
     private File currentFile;
 
+    public void detectFFMPEG() {
+        //ProcessBuilder processBuilder = new ProcessBuilder("./bin/ffmpeg", "-version"); <- Use this code when compiling to JAR
+        ProcessBuilder processBuilder = new ProcessBuilder(IDEString, "-version");
+
+        try {
+            Process process = processBuilder.start();
+            int exitCode = process.waitFor();
+
+            ffmpegText.setText("FFMPEG Detected ");
+        } catch (IOException | InterruptedException e) {
+            ffmpegText.setText("FFMPEG not found ");
+        }
+
+    }
+
     public void initialize() {
+        detectFFMPEG();
         videoTextField.setEditable(false);
         destinationTextField.setEditable(false);
     }
@@ -43,7 +74,7 @@ public class Controller {
 
     public void test(ActionEvent ae) {
         //ProcessBuilder processBuilder = new ProcessBuilder("./bin/ffmpeg", "-version"); <- Use this code when compiling to JAR
-        ProcessBuilder processBuilder = new ProcessBuilder("ffmpeg", "-version");
+        ProcessBuilder processBuilder = new ProcessBuilder(IDEString, "-version");
 
         try {
             Process process = processBuilder.start();
@@ -64,7 +95,7 @@ public class Controller {
     public void browseVideoFile(ActionEvent e) {
         FileChooser browse = new FileChooser();
         browse.setTitle("Select Video File");
-        browse.setInitialDirectory(new File(System.getProperty("user.home")));
+        browse.setInitialDirectory(new File(System.getProperty("user.home"), "Videos"));
         browse.getExtensionFilters().add(new FileChooser.ExtensionFilter("Video Files", "*.mp4", "*.mkv", "*.avi", "*.mov", "*.wmv"));
 
         File selectedFile = browse.showOpenDialog(new Stage());
@@ -82,7 +113,7 @@ public class Controller {
         DirectoryChooser folder = new DirectoryChooser();
         folder.setTitle("Select Destination Folder");
 
-        folder.setInitialDirectory(new File(System.getProperty("user.home")));
+        folder.setInitialDirectory(new File(System.getProperty("user.home"), "Videos"));
 
         File selectedFolder = folder.showDialog(new Stage());
 
@@ -103,9 +134,9 @@ public class Controller {
         }
     }
 
-    public int calculateOutputBitrate() {
+    public void calculateOutputBitrate() {
         try {
-            ProcessBuilder pb = new ProcessBuilder("ffmpeg", "-i", videoTextField.getText());
+            ProcessBuilder pb = new ProcessBuilder(IDEString, "-i", videoTextField.getText());
 
             pb.redirectErrorStream(true);
 
@@ -130,25 +161,101 @@ public class Controller {
             int minutes = Integer.parseInt(parts[1]);
             int seconds = Integer.parseInt(parts[2].split("\\.")[0]) + (minutes * 60) + (hours * 3600);
 
-            int bitrate = (int) ((7.5 * 8192) / seconds);
+            totalSeconds = (double) seconds;
 
-            System.out.println(bitrate);
 
-            return bitrate;
+            videoBitrate = (int) ((7.5 * 8192) / seconds) * 0.8;
+            audioBitrate = (int) ((7.5 * 8192) / seconds) * 0.2;
 
         } catch (Exception ex) {
             throw new RuntimeException(ex);
         }
     }
 
-    public void compress(ActionEvent e) {
-         int outputBitrate = calculateOutputBitrate();
+    private void updatePercentage(String l) {
+        Pattern timeREGEX = Pattern.compile("time=(\\d{2}:\\d{2}:\\d{2})\\.\\d{2}");
+        Matcher timeMatcher = timeREGEX.matcher(l);
 
-        System.out.println(outputBitrate);
+        if(timeMatcher.find()) {
+            String time = timeMatcher.group(1);
+
+            int hours = Integer.parseInt(time.split(":")[0]);
+            int minutes = Integer.parseInt(time.split(":")[1]);
+            double seconds = Integer.parseInt(time.split(":")[2]) + (hours * 3600) + (minutes * 60);
+
+            System.out.println(seconds/totalSeconds);
+            progressBar.setProgress((seconds / totalSeconds));
+        }
+
+
+    }
+
+    private void readStream(InputStream inputStream, boolean isOutputStream) {
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                String finalLine = line;
+                if (isOutputStream) {
+                    Platform.runLater(() -> System.out.println(finalLine + "\n"));
+                } else {
+                    if(finalLine.contains("time")) {
+
+                        Platform.runLater(() -> updatePercentage(finalLine));
+                    }
+
+                }
+            }
+        } catch (IOException ex) {
+            Platform.runLater(() -> {
+                throw new RuntimeException(ex);
+            });
+        }
+    }
+
+    public void ffmpegCompress() {
+        String[] command = {
+                "ffmpeg",
+                "-i", "\"" +videoTextField.getText() + "\"",
+                "-c:v", "libx264",
+                "-b:v " + videoBitrate + "k",
+                "-b:a " + audioBitrate + "k",
+                "\"" + destinationTextField.getText() + "\\output.mp4\""
+        };
+
+        String videoURI = "\"" +videoTextField.getText() + "\"";
+        String destinationURI = "\"" +destinationTextField.getText() + "\\output.mp4\"";
+        String videoBitrateString = videoBitrate + "k";
+        String audioBitrateString = audioBitrate + "k";
+
+        ProcessBuilder processBuilder = new ProcessBuilder("ffmpeg",
+                "-i", videoURI,
+                "-c:v", "libx264",
+                "-b:v", videoBitrateString,
+                "-b:a", audioBitrateString,
+                destinationURI);
+
+        try {
+            Process p = processBuilder.start();
+
+            new Thread(() -> readStream(p.getErrorStream(), false)).start();
+            int exitCode = p.waitFor();
+
+            System.out.println(exitCode);
+        } catch (IOException ex) {
+            throw new RuntimeException(ex);
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public void compress(ActionEvent e) {
+
+        calculateOutputBitrate();
+        new Thread(() -> ffmpegCompress()).start();
 
         //Todo
-        /* Compression logic
-        *  Browse from the folder you left off
-        *  Input validation for compress*/
+        /* Browse from the folder you left off
+        *  Input validation for compress
+        *  Remember to change the file location for ffmpeg when compiling into JAR file*/
     }
 }
