@@ -1,6 +1,6 @@
 <component name="ArtifactManager">
   <artifact type="jar" build-on-make="true" name="DiscordCompressor:jar">
-    <output-path>$PROJECT_DIR$/out/artifacts/DiscordCompressor_jar</output-path>
+    <output-path>$PROJECT_DIR$/../../../../Downloads/Test Discord Compressor</output-path>
     <root id="archive" name="DiscordCompressor.jar">
       <element id="module-output" name="DiscordCompressor" />
       <element id="extracted-dir" path="$MAVEN_REPOSITORY$/org/openjfx/javafx-base/13/javafx-base-13-win.jar" path-in-jar="/" />

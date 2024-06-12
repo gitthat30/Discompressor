@@ -33,6 +33,9 @@ public class Controller {
     @FXML
     private TextField destinationTextField;
     @FXML
+    private TextField filenameField;
+
+    @FXML
     private Button videoFileBrowseButton;
     @FXML
     private Button destinationBrowseButton;
@@ -48,6 +51,7 @@ public class Controller {
     private ProgressBar progressBar;
 
     private File currentFile;
+    private File selectedFolder;
 
     public void detectFFMPEG() {
         //ProcessBuilder processBuilder = new ProcessBuilder("./bin/ffmpeg", "-version"); <- Use this code when compiling to JAR
@@ -92,17 +96,56 @@ public class Controller {
         }
     }
 
+    public File checkLastDirectory(String field) {
+        System.out.println("HERE");
+        if(field.equals("File")) {
+            if(currentFile != null) {
+                System.out.println(currentFile.getAbsolutePath());
+                int last = currentFile.getAbsolutePath().lastIndexOf("\\");
+                String lastPath = currentFile.getAbsolutePath().substring(0, last);
+
+                return new File(lastPath);
+            }
+            else {
+                System.out.println("No file selected");
+                return new File(System.getProperty("user.home"), "Videos");
+            }
+        }
+        else {
+            if(selectedFolder != null) {
+                return new File(selectedFolder.getAbsolutePath());
+            }
+            else {
+                return new File(System.getProperty("user.home"), "Videos");
+            }
+        }
+
+    }
+
+
     public void browseVideoFile(ActionEvent e) {
+        checkLastDirectory("File");
         FileChooser browse = new FileChooser();
         browse.setTitle("Select Video File");
-        browse.setInitialDirectory(new File(System.getProperty("user.home"), "Videos"));
+
+        try {
+            browse.setInitialDirectory(checkLastDirectory("File"));
+        } catch (Exception ex) {
+            browse.setInitialDirectory(new File(System.getProperty("user.home"), "Videos"));
+        }
+
         browse.getExtensionFilters().add(new FileChooser.ExtensionFilter("Video Files", "*.mp4", "*.mkv", "*.avi", "*.mov", "*.wmv"));
 
-        File selectedFile = browse.showOpenDialog(new Stage());
+        try {
+            currentFile = browse.showOpenDialog(new Stage());
+        }
+        catch(IllegalArgumentException ex) {
+            browse.setInitialDirectory(new File(System.getProperty("user.home"), "Videos"));
+            currentFile = browse.showOpenDialog(new Stage());
+        }
 
-        if (selectedFile != null) {
-            currentFile = selectedFile;
-            videoTextField.setText(selectedFile.getAbsolutePath());
+        if (currentFile != null) {
+            videoTextField.setText(currentFile.getAbsolutePath());
         }
         else {
             videoTextField.setText("");
@@ -113,9 +156,16 @@ public class Controller {
         DirectoryChooser folder = new DirectoryChooser();
         folder.setTitle("Select Destination Folder");
 
-        folder.setInitialDirectory(new File(System.getProperty("user.home"), "Videos"));
 
-        File selectedFolder = folder.showDialog(new Stage());
+        folder.setInitialDirectory(checkLastDirectory("Folder"));
+
+        try {
+            selectedFolder = folder.showDialog(new Stage());
+        }
+        catch(IllegalArgumentException ex) {
+            folder.setInitialDirectory(new File(System.getProperty("user.home"), "Videos"));
+            selectedFolder = folder.showDialog(new Stage());
+        }
 
         if (selectedFolder != null) {
             destinationTextField.setText(selectedFolder.getAbsolutePath());
@@ -223,9 +273,11 @@ public class Controller {
         };
 
         String videoURI = "\"" +videoTextField.getText() + "\"";
-        String destinationURI = "\"" +destinationTextField.getText() + "\\output.mp4\"";
+        String outputName = "\\" + filenameField.getText() + ".mp4\"";
+        String destinationURI = "\"" +destinationTextField.getText() + outputName;
         String videoBitrateString = videoBitrate + "k";
         String audioBitrateString = audioBitrate + "k";
+
 
         ProcessBuilder processBuilder = new ProcessBuilder("ffmpeg",
                 "-i", videoURI,
